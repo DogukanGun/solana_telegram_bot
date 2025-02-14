@@ -1,10 +1,9 @@
 import { Telegraf, Markup, session } from 'telegraf';
-import { PrismaClient } from '@prisma/client';
 import { SessionContext } from './types';
 import dotenv from 'dotenv';
 import getAgent from '../agent/agent';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-
+import { prisma } from '../prisma/client';
 dotenv.config();
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -14,7 +13,7 @@ if (!token) {
 }
 
 const bot = new Telegraf<SessionContext>(token);
-const prisma = new PrismaClient();
+
 
 // Use session middleware
 bot.use(session());
