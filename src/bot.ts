@@ -1,8 +1,17 @@
 import { Telegraf, Markup, session } from 'telegraf';
 import { PrismaClient } from '@prisma/client';
 import { SessionContext } from './types';
+import dotenv from 'dotenv';
+import getAgent from '../agent/agent';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 
-const token = 'YOUR_TELEGRAM_BOT_TOKEN';
+dotenv.config();
+
+const token = process.env.TELEGRAM_BOT_TOKEN;
+
+if (!token) {
+  throw new Error('TELEGRAM_BOT_TOKEN is not set in the environment variables');
+}
 
 const bot = new Telegraf<SessionContext>(token);
 const prisma = new PrismaClient();
@@ -23,42 +32,49 @@ bot.on('new_chat_members', async (ctx) => {
 // Handle the callback for defining the name
 bot.action('define_name', async (ctx) => {
   await ctx.reply('Please enter a name for the agent:');
-  
-  ctx.session.waitingForName = true;
+
+  // Initialize session if it doesn't exist
+  if (!ctx.session) {
+    ctx.session = {};
+  }
+
+  ctx.session.waitingForName = true; // Initialize session variable
 });
 
 // Handle text messages
 bot.on('text', async (ctx) => {
+  if (!ctx.session) {
+    ctx.session = {};
+  }
+  let messages = []
   if (ctx.session.waitingForName) {
     const agentName = ctx.message.text;
-
-    // Create a new telegramGroup object in the database
-    await prisma.telegramGroup.create({
-      data: {
-        name: agentName,
-        chatId: ctx.chat.id.toString(),
-      },
-    });
-
-    await ctx.reply(`Agent name "${agentName}" has been set. The agent is now operational.`);
+    messages.push(new SystemMessage("Please create an agent with the name: " + agentName + " and chatId: " + ctx.chat.id.toString()));
     ctx.session.waitingForName = false; // Reset user state
-  }
-});
-
-bot.command('trade', async (ctx) => {
-  const tradeDemand = ctx.message.text.split(' ').slice(1).join(' ');
-  if (tradeDemand) {
-    await prisma.tradeSignal.create({
-      data: {
-        condition: tradeDemand,
-        groupId: ctx.chat.id.toString(),
-      },
-    });
-    // TODO: ask ai model to generate a tx for the trade demand
-    ctx.reply(`Received trade demand: ${tradeDemand}`);
   } else {
-    ctx.reply('Please provide a trade demand after the /trade command.');
+    messages.push(new HumanMessage(ctx.message.text));
   }
+  // Stream the response from the agent
+  const stream = await getAgent(ctx.chat.id.toString()).stream(
+    {
+      messages: messages
+    },
+    { configurable: { thread_id: "Telegram Bot" } }
+  );
+
+  let response = "";
+  console.log("Stream: ", stream);
+  for await (const chunk of stream) {
+    if ("agent" in chunk) {
+      console.log(chunk.agent.messages[0].content);
+      response = chunk.agent.messages[0].content;
+    } else if ("tools" in chunk) {
+      console.log(chunk.tools.messages[0].content);
+    }
+    console.log("-------------------");
+  }
+  console.log("Response: ", response);
+  await ctx.reply(response); // Send the response back to the user
 });
 
 bot.command("trigger", async (ctx) => {
