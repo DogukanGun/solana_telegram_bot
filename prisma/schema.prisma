@@ -37,9 +37,10 @@ model TelegramGroup {
 
 model Wallet {
   id          String       @id @default(cuid())
-  chatId      String       // The chat ID associated with the wallet
+  chatId      String       @unique // The chat ID associated with the wallet
   keyShare    String       // Encrypted key share for the wallet
   groupId     String       // Foreign key to TelegramGroup
+  publicKey   String       // Public key for the wallet
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   group       TelegramGroup @relation("GroupWallets", fields: [groupId], references: [id])

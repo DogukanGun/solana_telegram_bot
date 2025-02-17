@@ -27,20 +27,35 @@ export class AgentSettingsTool extends Tool {
 
     if (action === "create") {
       try {
+        const hasPregenWallet = await this.paraClient.hasPregenWallet(
+          {
+            pregenIdentifier: this.chatId,
+            pregenIdentifierType: "CUSTOM_ID"
+          }
+        );
+        if (hasPregenWallet) {
+          return "Wallet already exists";
+        }
         const newWallet = await this.paraClient.createPregenWallet({
           type: WalletType.SOLANA,
           pregenIdentifier: this.chatId,
           pregenIdentifierType: "CUSTOM_ID"
         });
-        if (!newWallet.userId) {
+        console.log("newWallet", newWallet.address);
+        if (!newWallet.address) {
           return "Failed to create wallet";
         }
-        const encryptedKeyShare = encrypt(newWallet.userId);
+        const userShare =  this.paraClient.getUserShare();
+        if (!userShare) {
+          return "Failed to get user share";
+        }
+        const encryptedKeyShare = encrypt(userShare);
         await prisma.wallet.create({
           data: {
             chatId: this.chatId,
             keyShare: encryptedKeyShare,
-            groupId: this.chatId
+            groupId: this.chatId,
+            publicKey: newWallet.address!
           }
         });
         return `Wallet created for agent ${agentName} with chat ID ${this.chatId}.`;
@@ -48,14 +63,14 @@ export class AgentSettingsTool extends Tool {
         console.error("Error creating wallet:", error);
         return "Failed to create wallet";
       }
-
     } else if (action === "import") {
       const decryptedWalletData = decrypt(walletData);
       await prisma.wallet.create({
         data: {
           chatId: this.chatId,
           keyShare: decryptedWalletData,
-          groupId: this.chatId
+          groupId: this.chatId,
+          publicKey: decryptedWalletData
         }
       });
       return `Wallet imported for agent ${agentName} with chat ID ${this.chatId}.`;
