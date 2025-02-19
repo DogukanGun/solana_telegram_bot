@@ -1,7 +1,6 @@
 import { Tool } from 'langchain/tools';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma/client';
 
-const prisma = new PrismaClient();
 
 export class GetWalletTool extends Tool {
   chatId: string;
