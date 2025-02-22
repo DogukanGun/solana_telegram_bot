@@ -22,11 +22,17 @@ export class GetWalletTool extends Tool {
         }
       });
 
-      if (!wallet) {
+      const evmWallet = await prisma.cDPWallet.findUnique({
+        where: {
+          chatId: this.chatId,
+        }
+      });
+
+      if (!wallet || !evmWallet) {
         throw new Error("Wallet not found.");
       }
 
-      return `Wallet information: ${wallet.publicKey}`;
+      return `Wallet information: ${wallet.publicKey} and ${evmWallet.address}`;
     } catch (error) {
       console.error("Error processing get wallet command:", error, input);
       throw new Error("Invalid input format or wallet retrieval failed.");
